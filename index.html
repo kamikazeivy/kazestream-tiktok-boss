@@ -3,8 +3,118 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kazestream TikTok Boss</title>
+    <title>Kazestream TikTok Boss Overlay</title>
     <link rel="stylesheet" href="styles.css" />
+    <style>
+      body {
+        background: transparent;
+        margin: 0;
+        font-family: "Press Start 2P", monospace, Arial, sans-serif;
+        color: #fff;
+        overflow: hidden;
+      }
+      #boss-container {
+        width: 420px;
+        margin: 32px auto 0 auto;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 18px;
+        box-shadow: 0 0 32px #000a;
+        padding: 24px 16px 32px 16px;
+        text-align: center;
+      }
+      #boss-name {
+        font-size: 20px;
+        margin-bottom: 8px;
+        color: #ff2222;
+        text-shadow: 0 0 8px #ff2222, 0 0 16px #fff4;
+        font-family: "Press Start 2P", monospace;
+      }
+      #buddy-name {
+        margin: 12px 0 0 0;
+      }
+      .buddy-entry {
+        display: inline-block;
+        text-align: center;
+        margin-bottom: 8px;
+      }
+      .buddy-img {
+        width: 96px;
+        height: 96px;
+        border-radius: 12px;
+        background: #222;
+        box-shadow: 0 0 12px #ff2222, 0 0 2px #fff;
+        margin-bottom: 4px;
+      }
+      .buddy-name {
+        font-family: "Press Start 2P", monospace;
+        font-size: 13px;
+        color: #fff;
+        letter-spacing: 1px;
+      }
+      .boss-username {
+        display: block;
+        font-family: "Press Start 2P", monospace;
+        color: #ff2222;
+        font-size: 18px;
+        text-shadow: 0 0 5px #ff2222, 0 0 10px #ff2222, 0 0 20px #ff2222,
+          0 0 40px #ff2222;
+        margin-top: 4px;
+      }
+      #sprite-canvas {
+        display: block;
+        margin: 0 auto 8px auto;
+        background: transparent;
+        border-radius: 12px;
+        box-shadow: 0 0 8px #ff2222, 0 0 2px #fff;
+      }
+      #health-bar-container {
+        margin: 18px 0 0 0;
+      }
+      .bar-label {
+        font-size: 13px;
+        vertical-align: middle;
+        margin-right: 8px;
+      }
+      .bar-icon {
+        width: 18px;
+        height: 18px;
+        vertical-align: middle;
+        margin-right: 2px;
+      }
+      .bar-area {
+        position: relative;
+        width: 100%;
+        height: 22px;
+        background: #222;
+        border-radius: 8px;
+        margin: 8px 0;
+        overflow: hidden;
+      }
+      #health-bar,
+      #shield-bar {
+        height: 22px;
+        border-radius: 8px;
+        transition: width 0.3s;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      #health-bar {
+        background: #e74c3c;
+        width: 100%;
+        z-index: 1;
+      }
+      #shield-bar {
+        background: #3498db;
+        width: 0;
+        opacity: 0.7;
+        z-index: 2;
+      }
+      .shield-label {
+        color: #3498db;
+        opacity: 0.7;
+      }
+    </style>
   </head>
   <body>
     <div id="boss-container">
@@ -12,268 +122,96 @@
       <canvas id="sprite-canvas" width="128" height="128"></canvas>
       <div id="buddy-name"></div>
       <div id="health-bar-container">
-        <img src="assets/images/health.png" alt="Health" class="bar-icon" />
+        <span class="bar-label">
+          <img src="assets/images/health.png" alt="Health" class="bar-icon" />
+          HP
+        </span>
         <div class="bar-area">
-          <div id="shield-bar"></div>
           <div id="health-bar"></div>
+          <div id="shield-bar"></div>
         </div>
-        <img src="assets/images/shield.png" alt="Shield" class="bar-icon" />
-        <span class="shield-coin">
-          299 <img src="assets/images/coin.png" alt="Coin" class="coin-icon" />
+        <span class="bar-label shield-label" id="shield-label">
+          <img src="assets/images/shield.png" alt="Shield" class="bar-icon" />
+          SHD <span id="shield-cost">(299)</span>
         </span>
       </div>
-      <div id="shield-cooldown" class="shield-cooldown">
-        Shield Cooldown: <span id="cooldown-timer">5:00</span>
-      </div>
-      <div id="overlay-guide" class="overlay-guide">
-        <strong>How to Play:</strong>
-        <ul>
-          <li>
-            Send chat messages or tap/like to attack the boss (1 damage each).
-          </li>
-          <li>
-            Send gifts (type <code>coin [amount]</code> in chat) to deal even
-            more damage!
-          </li>
-          <li>The boss can heal and activate a shield by sending coins.</li>
-          <li>Type <code>share</code> in chat to deal a big hit!</li>
-          <li>
-            Boss resets every Sunday at midnight. All-time longest boss is shown
-            on defeat!
-          </li>
-        </ul>
-      </div>
-      <div id="leaderboard">
-        <h3>Top Attackers</h3>
-        <ol id="leaderboard-list"></ol>
-      </div>
-      <div id="event-message" class="event-message"></div>
-      <div id="gifts"></div>
-      <div id="error-message" class="error-message"></div>
-      <div id="last-attacker"></div>
     </div>
-    <audio id="hit-sound" src="sounds/hit.mp3"></audio>
-    <audio id="kill-sound" src="sounds/kill.mp3"></audio>
-    <audio id="shield-sound" src="sounds/shield-on.mp3"></audio>
-    <audio id="shield-depleted-sound" src="sounds/shield-depleted.mp3"></audio>
-
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
       // --- CONFIG & STATE ---
-      let bossName = "???";
-      let bossSet = false;
-      let currentHealth = 2000;
-      let shield = 0;
-      let lastAttacker = "";
-      let leaderboard = {};
       const MAX_HEALTH = 2000;
       const SHIELD_COST = 299;
+      const MAX_BUDDY = 14;
+
+      let bossName = "???";
+      let currentHealth = MAX_HEALTH;
+      let shield = 0;
+      let currentBuddy = 1;
+
+      // --- BUDDY DATA ---
+      const buddies = Array.from({ length: MAX_BUDDY }, (_, i) => ({
+        name: `Buddy ${i + 1}`,
+        img: `assets/images/buddy${i + 1}.png`,
+      }));
 
       // --- UI UPDATE FUNCTIONS ---
       function updateBars() {
-        const hp = document.getElementById("health-bar");
-        const sp = document.getElementById("shield-bar");
-        hp.style.width = `${(currentHealth / MAX_HEALTH) * 100}%`;
-        sp.style.width = `${(shield / MAX_HEALTH) * 100}%`;
-        document.getElementById(
-          "last-attacker"
-        ).textContent = `Last Attacker: ${lastAttacker || "None"}`;
+        document.getElementById("health-bar").style.width =
+          (currentHealth / MAX_HEALTH) * 100 + "%";
+        document.getElementById("shield-bar").style.width =
+          (shield / MAX_HEALTH) * 100 + "%";
       }
 
-      function updateLeaderboard(username, amount, profilePic) {
-        if (!leaderboard[username])
-          leaderboard[username] = { score: 0, profilePic };
-        leaderboard[username].score += amount;
-        renderLeaderboard();
-      }
-
-      function renderLeaderboard() {
-        const list = document.getElementById("leaderboard-list");
-        list.innerHTML = "";
-        Object.entries(leaderboard)
-          .sort((a, b) => b[1].score - a[1].score)
-          .slice(0, 5)
-          .forEach(([user, data]) => {
-            const li = document.createElement("li");
-            li.innerHTML = `<img src="${data.profilePic}" width="20" height="20" style="vertical-align:middle;border-radius:50%;"> ${user}: ${data.score}`;
-            list.appendChild(li);
-          });
-      }
-
-      function showGift(user, amount, giftName = "", giftIconUrl = "") {
-        const giftsDiv = document.getElementById("gifts");
-        const el = document.createElement("div");
-        el.className = "gift";
-        let giftDisplay = "";
-        if (giftIconUrl) {
-          giftDisplay = `<img src="${giftIconUrl}" alt="${giftName}" class="gift-icon" />`;
-        } else if (giftName) {
-          giftDisplay = giftName;
-        } else {
-          giftDisplay = "🎁";
-        }
-        el.innerHTML = `${giftDisplay} ${user} sent ${amount} coins!`;
-        giftsDiv.appendChild(el);
-        setTimeout(() => giftsDiv.removeChild(el), 5000);
-      }
-
-      function showEventMessage(msg, color = "#fff") {
-        const eventMsg = document.getElementById("event-message");
-        eventMsg.textContent = msg;
-        eventMsg.style.color = color;
-        eventMsg.style.display = "block";
-        setTimeout(() => (eventMsg.style.display = "none"), 3000);
-      }
-
-      function setBoss(name) {
-        bossName = name;
+      function showCurrentBuddyAndBoss() {
+        // Show buddy sprite on canvas
+        showBuddyOnCanvas(currentBuddy);
+        // Show buddy name and boss username
+        const buddy = buddies[currentBuddy - 1];
+        document.getElementById("buddy-name").innerHTML = `
+          <div class="buddy-entry boss-active">
+            <img src="${buddy.img}" alt="${buddy.name}" class="buddy-img" />
+            <div class="buddy-name">${buddy.name}</div>
+            <span class="boss-username">${bossName}</span>
+          </div>
+        `;
         document.getElementById("boss-name").textContent = `Boss: ${bossName}`;
-        bossSet = name !== "???";
+      }
+
+      function showBuddyOnCanvas(buddyNumber = 1) {
+        const canvas = document.getElementById("sprite-canvas");
+        const ctx = canvas.getContext("2d");
+        const img = new Image();
+        img.onload = function () {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        };
+        img.src = `assets/images/buddy${buddyNumber}.png`;
+      }
+
+      // --- SOCKET.IO HANDLING ---
+      const socket = io("http://localhost:3000");
+
+      // Example: Listen for boss reset from backend
+      socket.on("bossReset", ({ newBuddyIndex, newBossUsername }) => {
+        currentBuddy = newBuddyIndex;
+        bossName = newBossUsername;
         currentHealth = MAX_HEALTH;
         shield = 0;
+        showCurrentBuddyAndBoss();
         updateBars();
-      }
+      });
 
-      // --- DAMAGE & HEAL LOGIC ---
-      function heal(amount) {
-        currentHealth = Math.min(currentHealth + amount, MAX_HEALTH);
+      // Example: Listen for health/shield updates (customize as needed)
+      socket.on("updateHealth", ({ health, shieldValue }) => {
+        currentHealth = health;
+        shield = shieldValue;
         updateBars();
-      }
-
-      function activateShield() {
-        if (shield > 0) return; // Already shielded
-        shield = MAX_HEALTH;
-        updateBars();
-        document.getElementById("shield-sound").play();
-        setTimeout(() => {
-          shield = 0;
-          updateBars();
-          document.getElementById("shield-depleted-sound").play();
-        }, 5000);
-      }
-
-      function takeDamage(amount, attacker) {
-        if (attacker) lastAttacker = attacker;
-        if (shield > 0) {
-          shield -= amount;
-          if (shield < 0) {
-            currentHealth += shield; // shield is negative, so this subtracts overflow from health
-            shield = 0;
-            document.getElementById("shield-depleted-sound").play();
-            showEventMessage("Shield Depleted!", "#888");
-          }
-        } else {
-          currentHealth -= amount;
-        }
-        if (currentHealth <= 0) {
-          document.getElementById("kill-sound").play();
-          showEventMessage(
-            `Boss Defeated by ${lastAttacker || "Unknown"}!`,
-            "#e74c3c"
-          );
-          setBoss("???");
-          bossSet = false;
-          leaderboard = {};
-          renderLeaderboard();
-        }
-        updateBars();
-      }
-
-      // --- WEBSOCKET HANDLING ---
-      const ws = new WebSocket("ws://localhost:21213/");
-
-      ws.onopen = () => {
-        console.log("Connected to TikFinity WebSocket");
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.event === "chat" && msg.data) {
-            const text = (msg.data.text || "").toLowerCase();
-            const username = msg.data.username || "Anonymous";
-            const profilePic = msg.data.profilePictureUrl || "";
-            const coinMatch = text.match(/coin\s*(\d+)/);
-            if (coinMatch) {
-              const amount = parseInt(coinMatch[1], 10);
-              updateLeaderboard(username, amount, profilePic);
-              window.receiveEvent("coin", amount, username);
-              showGift(username, amount);
-            }
-          }
-          if (msg.event === "like" && msg.data) {
-            const username = msg.data.username || "Anonymous";
-            const profilePic = msg.data.profilePictureUrl || "";
-            if (username !== bossName) {
-              updateLeaderboard(username, 1, profilePic);
-              window.receiveEvent("like", 1, username);
-            }
-          }
-          if (msg.event === "share" && msg.data) {
-            const username = msg.data.username || "Anonymous";
-            const profilePic = msg.data.profilePictureUrl || "";
-            if (username !== bossName) {
-              updateLeaderboard(username, 10, profilePic);
-              window.receiveEvent("share", 1, username);
-            }
-          }
-          if (msg.event === "gift" && msg.data) {
-            if (msg.data.giftType === 1 && !msg.data.repeatEnd) {
-              // Streak in progress, show temporary
-            } else {
-              const username = msg.data.username || "Anonymous";
-              const profilePic = msg.data.profilePictureUrl || "";
-              const amount = msg.data.coinAmount || 1;
-              const giftName = msg.data.giftName || "";
-              const giftIconUrl = msg.data.giftIconUrl || "";
-              updateLeaderboard(username, amount, profilePic);
-              window.receiveEvent("coin", amount, username);
-              showGift(username, amount, giftName, giftIconUrl);
-            }
-          }
-          if (msg.event === "follow" && msg.data) {
-            showEventMessage(`${msg.data.username} followed!`, "#0ff");
-          }
-          if (msg.event === "subscribe" && msg.data) {
-            showEventMessage(`${msg.data.username} subscribed!`, "#ff0");
-          }
-          if (msg.event === "member" && msg.data) {
-            showEventMessage(`${msg.data.username} joined the stream!`, "#fff");
-          }
-        } catch (e) {
-          console.error("WebSocket message error:", e);
-        }
-      };
-
-      ws.onerror = (err) => {
-        console.error("WebSocket error:", err);
-        document.getElementById("error-message").textContent =
-          "WebSocket error. Please check your connection.";
-      };
-
-      // --- MAIN EVENT HANDLER ---
-      window.receiveEvent = function (type, value, attacker) {
-        if (type === "coin") {
-          if (!bossSet && value >= 1) {
-            setBoss(attacker);
-            bossSet = true;
-          } else if (attacker === bossName) {
-            heal(value * 2);
-            if (value >= SHIELD_COST) activateShield();
-          } else {
-            takeDamage(value, attacker);
-          }
-        } else if (type === "like" && attacker !== bossName) {
-          takeDamage(1, attacker);
-        } else if (type === "share" && attacker !== bossName) {
-          takeDamage(10, attacker);
-        }
-      };
+      });
 
       // --- INITIALIZE ---
       document.addEventListener("DOMContentLoaded", () => {
-        setBoss("???");
+        showCurrentBuddyAndBoss();
         updateBars();
-        renderLeaderboard();
       });
     </script>
   </body>
